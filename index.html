@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FIFA World Cup 2026 — Breakroom Dashboard</title>
+<style>
+  :root{
+    --bg:#070b16;
+    --bg2:#0b1020;
+    --panel:#10172b;
+    --panel2:#0d1426;
+    --line:rgba(255,255,255,.07);
+    --line2:rgba(255,255,255,.12);
+    --text:#eaf0fb;
+    --muted:#8590a8;
+    --muted2:#5e6880;
+    --accent:#3f6fff;
+    --accent2:#14e0c8;
+    --live:#ff3b5c;
+    --win:#1fd17a;
+    --gold:#ffcf5c;
+    --qual:rgba(31,209,122,.16);
+    --base: 2.55vmin; /* master scale knob, recalculated by JS to fit */
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{height:100%;width:100%;overflow:hidden;background:var(--bg);}
+  body{
+    font-family:"Inter","Segoe UI",system-ui,-apple-system,Roboto,Helvetica,Arial,sans-serif;
+    color:var(--text);
+    font-size:var(--base);
+    -webkit-font-smoothing:antialiased;
+  }
+  .app{
+    position:absolute;inset:0;
+    display:flex;flex-direction:column;
+    padding:1.7em 1.9em 1.4em;
+    background:
+      radial-gradient(120% 90% at 12% -10%, #16224a 0%, rgba(22,34,74,0) 55%),
+      radial-gradient(120% 120% at 100% 0%, #0c2b3a 0%, rgba(12,43,58,0) 45%),
+      linear-gradient(160deg,#070b16 0%,#0a0f1f 60%,#070a13 100%);
+  }
+
+  /* ---------- Header ---------- */
+  .head{display:flex;align-items:center;justify-content:space-between;gap:1em;flex:0 0 auto;}
+  .brand{display:flex;align-items:center;gap:.8em;min-width:0;}
+  .crest{
+    width:2.9em;height:2.9em;border-radius:.7em;flex:0 0 auto;
+    background:linear-gradient(150deg,var(--accent),#7a32ff);
+    display:flex;align-items:center;justify-content:center;
+    box-shadow:0 .3em 1.2em rgba(63,111,255,.35);
+    font-size:1em;
+  }
+  .crest svg{width:62%;height:62%}
+  .brand .t1{font-size:.78em;letter-spacing:.32em;color:var(--accent2);font-weight:700;text-transform:uppercase}
+  .brand .t2{font-size:1.55em;font-weight:800;letter-spacing:-.01em;line-height:1.05}
+  .head-right{display:flex;align-items:center;gap:1.3em;flex:0 0 auto}
+  .clock{text-align:right;line-height:1.1}
+  .clock .time{font-size:1.5em;font-weight:800;font-variant-numeric:tabular-nums;letter-spacing:.01em}
+  .clock .date{font-size:.74em;color:var(--muted);text-transform:uppercase;letter-spacing:.16em}
+  .status-dot{
+    display:inline-flex;align-items:center;gap:.45em;font-size:.72em;color:var(--muted);
+    text-transform:uppercase;letter-spacing:.12em;margin-top:.25em;justify-content:flex-end
+  }
+  .status-dot i{width:.62em;height:.62em;border-radius:50%;background:var(--win);box-shadow:0 0 .6em var(--win)}
+  .status-dot.warn i{background:var(--gold);box-shadow:0 0 .6em var(--gold)}
+  .status-dot.err i{background:var(--live);box-shadow:0 0 .6em var(--live)}
+
+  /* ---------- View frame ---------- */
+  .stage{position:relative;flex:1 1 auto;margin-top:1.25em;min-height:0}
+  .view{position:absolute;inset:0;display:flex;flex-direction:column;opacity:0;transform:translateY(1.2em);
+    transition:opacity .6s ease,transform .6s ease;pointer-events:none}
+  .view.active{opacity:1;transform:none;pointer-events:auto}
+
+  .view-title{display:flex;align-items:center;gap:.7em;margin-bottom:.7em;flex:0 0 auto}
+  .view-title h2{font-size:1.15em;font-weight:800;letter-spacing:.01em}
+  .view-title .accent-bar{width:.32em;height:1.25em;border-radius:1em;background:linear-gradient(var(--accent),var(--accent2))}
+  .view-title .sub{font-size:.72em;color:var(--muted);text-transform:uppercase;letter-spacing:.16em;margin-left:.2em}
+
+  /* ---------- View 1: Results + Upcoming ---------- */
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:1.15em;flex:1 1 auto;min-height:0}
+  .col{display:flex;flex-direction:column;min-height:0}
+  .col-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:.55em}
+  .col-head .ch-l{display:flex;align-items:center;gap:.5em;font-size:.92em;font-weight:700}
+  .col-head .pill{font-size:.62em;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);
+    border:1px solid var(--line2);border-radius:1em;padding:.18em .7em}
+  .ch-icon{width:1.05em;height:1.05em}
+  .list{display:flex;flex-direction:column;gap:.5em;overflow:hidden}
+
+  .match{
+    background:linear-gradient(180deg,var(--panel) 0%,var(--panel2) 100%);
+    border:1px solid var(--line);border-radius:.75em;padding:.62em .8em;
+    display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:.5em;position:relative;overflow:hidden
+  }
+  .match::before{content:"";position:absolute;left:0;top:0;bottom:0;width:.22em;background:transparent}
+  .match.live::before{background:var(--live)}
+  .match.done::before{background:var(--accent2)}
+  .side{display:flex;align-items:center;gap:.55em;min-width:0}
+  .side.away{flex-direction:row-reverse;text-align:right}
+  .flag{width:1.85em;height:1.3em;border-radius:.18em;object-fit:cover;background:#1b2238;flex:0 0 auto;
+    box-shadow:0 0 0 1px rgba(255,255,255,.08)}
+  .team-code{font-weight:700;font-size:.95em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .center{display:flex;flex-direction:column;align-items:center;gap:.1em;min-width:3.4em}
+  .score{font-size:1.18em;font-weight:800;font-variant-numeric:tabular-nums;letter-spacing:.04em}
+  .score .x{color:var(--muted2);margin:0 .18em;font-weight:600}
+  .winner{color:var(--win)}
+  .vs{font-size:.9em;font-weight:700;color:var(--muted)}
+  .meta{font-size:.6em;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;white-space:nowrap}
+  .meta.livetag{color:var(--live);font-weight:800;display:flex;align-items:center;gap:.3em}
+  .meta.livetag i{width:.42em;height:.42em;border-radius:50%;background:var(--live);animation:blink 1s infinite}
+  @keyframes blink{50%{opacity:.25}}
+  .grp-chip{font-size:.58em;color:var(--muted2);border:1px solid var(--line);border-radius:.4em;padding:.05em .4em;margin-left:.4em}
+
+  .empty{flex:1 1 auto;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.5em;
+    border:1px dashed var(--line2);border-radius:.9em;color:var(--muted);text-align:center;padding:1em}
+  .empty .big{font-size:1.1em;font-weight:700;color:var(--text)}
+  .empty .small{font-size:.8em}
+
+  /* ---------- View 2: Standings ---------- */
+  .groups{display:grid;grid-template-columns:repeat(4,1fr);grid-template-rows:repeat(3,1fr);
+    gap:.7em;flex:1 1 auto;min-height:0}
+  .gcard{background:linear-gradient(180deg,var(--panel) 0%,var(--panel2) 100%);
+    border:1px solid var(--line);border-radius:.7em;padding:.5em .6em;display:flex;flex-direction:column;min-height:0;overflow:hidden}
+  .gcard h3{font-size:.72em;letter-spacing:.14em;text-transform:uppercase;color:var(--accent2);
+    margin-bottom:.35em;display:flex;justify-content:space-between;align-items:center}
+  .gcard h3 .gl{color:var(--muted2);font-size:.82em;letter-spacing:.1em}
+  .grow{display:grid;grid-template-columns:1.1em 1.6em 1fr auto auto;align-items:center;gap:.4em;
+    font-size:.74em;padding:.16em 0;border-top:1px solid rgba(255,255,255,.04)}
+  .grow:first-of-type{border-top:none}
+  .grow.qual{background:linear-gradient(90deg,var(--qual),transparent);border-radius:.3em;
+    margin:0 -.2em;padding-left:.2em;padding-right:.2em}
+  .grow .pos{color:var(--muted2);font-weight:700;text-align:center}
+  .grow .gflag{width:1.45em;height:1.02em;border-radius:.14em;object-fit:cover;background:#1b2238;
+    box-shadow:0 0 0 1px rgba(255,255,255,.08)}
+  .grow .gname{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .grow .gp{color:var(--muted);font-variant-numeric:tabular-nums;width:1.4em;text-align:center}
+  .grow .gpts{font-weight:800;font-variant-numeric:tabular-nums;width:1.4em;text-align:center}
+  .gcard .ghdr{display:grid;grid-template-columns:1.1em 1.6em 1fr auto auto;gap:.4em;
+    font-size:.56em;color:var(--muted2);text-transform:uppercase;letter-spacing:.08em;padding-bottom:.15em}
+  .gcard .ghdr span:nth-child(3){text-align:left}
+
+  /* ---------- Footer / rotation ---------- */
+  .foot{flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;margin-top:1em;gap:1em}
+  .dots{display:flex;gap:.5em;align-items:center}
+  .dots .d{width:.62em;height:.62em;border-radius:50%;background:var(--line2);transition:all .4s}
+  .dots .d.on{width:1.7em;border-radius:1em;background:linear-gradient(90deg,var(--accent),var(--accent2))}
+  .foot .label{font-size:.66em;color:var(--muted2);text-transform:uppercase;letter-spacing:.16em}
+  .progress{flex:1 1 auto;height:.22em;background:var(--line);border-radius:1em;overflow:hidden;max-width:42%}
+  .progress i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--accent),var(--accent2));}
+  .foot .updated{font-size:.66em;color:var(--muted);font-variant-numeric:tabular-nums}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="head">
+    <div class="brand">
+      <div class="crest" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M12 2l2.4 4.9 5.4.8-3.9 3.8.9 5.4L12 19l-4.8 2.6.9-5.4L4.2 8.4l5.4-.8L12 2z" fill="#fff" opacity=".95"/></svg>
+      </div>
+      <div>
+        <div class="t1">FIFA World Cup</div>
+        <div class="t2">2026 · Live Tracker</div>
+      </div>
+    </div>
+    <div class="head-right">
+      <div class="clock">
+        <div class="time" id="clock">--:--</div>
+        <div class="date" id="today">—</div>
+        <div class="status-dot" id="feed"><i></i><span id="feedtxt">Connecting…</span></div>
+      </div>
+    </div>
+  </header>
+
+  <div class="stage">
+    <!-- VIEW 1 -->
+    <section class="view active" id="view1">
+      <div class="view-title">
+        <span class="accent-bar"></span>
+        <h2>Results &amp; Upcoming</h2>
+        <span class="sub" id="v1sub">Group Stage</span>
+      </div>
+      <div class="cols">
+        <div class="col">
+          <div class="col-head">
+            <div class="ch-l">
+              <svg class="ch-icon" viewBox="0 0 24 24" fill="none" stroke="#14e0c8" stroke-width="2"><path d="M5 13l4 4L19 7"/></svg>
+              Recent Results
+            </div>
+            <span class="pill">Last 3 days</span>
+          </div>
+          <div class="list" id="results"></div>
+        </div>
+        <div class="col">
+          <div class="col-head">
+            <div class="ch-l">
+              <svg class="ch-icon" viewBox="0 0 24 24" fill="none" stroke="#3f6fff" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M8 3v4M16 3v4"/></svg>
+              Upcoming
+            </div>
+            <span class="pill">Next 3 days</span>
+          </div>
+          <div class="list" id="fixtures"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- VIEW 2 -->
+    <section class="view" id="view2">
+      <div class="view-title">
+        <span class="accent-bar"></span>
+        <h2>Group Standings</h2>
+        <span class="sub">Top 2 advance · plus best 3rd-place teams</span>
+      </div>
+      <div class="groups" id="groups"></div>
+    </section>
+  </div>
+
+  <footer class="foot">
+    <div class="dots"><span class="d on" data-i="0"></span><span class="d" data-i="1"></span></div>
+    <div class="progress"><i id="prog"></i></div>
+    <div class="updated">Updated <span id="updated">—</span></div>
+  </footer>
+</div>
+
+<script>
+/* ============================================================
+   FIFA World Cup 2026 — YoDeck breakroom dashboard
+   Live data: TheSportsDB (free public key, browser-CORS OK)
+   - Pulls match-by-day, computes recent results, next fixtures,
+     and group standings entirely client-side so it refreshes
+     on every page load (YoDeck reloads the page each rotation).
+   ============================================================ */
+const CFG = {
+  key: '123',                 // free public TheSportsDB key (swap for a Patreon key for higher limits)
+  league: '4429',             // FIFA World Cup
+  rotateMs: 15000,            // time on each screen
+  refreshMs: 4 * 60 * 1000,   // re-pull data in background
+  tStart: '2026-06-11',       // tournament start
+  tEnd:   '2026-07-19',       // tournament end
+  groupEnd: '2026-06-27',     // group stage end (standings window)
+  maxDays: 26                 // safety cap on number of day-calls
+};
+const api = d => `https://www.thesportsdb.com/api/v1/json/${CFG.key}/eventsday.php?d=${d}&l=${CFG.league}`;
+
+/* ---- 3-letter codes for compact display ---- */
+const CODE = {
+  "Mexico":"MEX","South Africa":"RSA","South Korea":"KOR","Czech Republic":"CZE","Canada":"CAN",
+  "Bosnia-Herzegovina":"BIH","USA":"USA","Paraguay":"PAR","Brazil":"BRA","Morocco":"MAR","Qatar":"QAT",
+  "Switzerland":"SUI","Haiti":"HAI","Scotland":"SCO","Germany":"GER","Curaçao":"CUW","Curacao":"CUW",
+  "Ivory Coast":"CIV","Ecuador":"ECU","Netherlands":"NED","Japan":"JPN","Australia":"AUS","Turkey":"TUR",
+  "Türkiye":"TUR","Belgium":"BEL","Egypt":"EGY","Saudi Arabia":"KSA","Uruguay":"URU","Spain":"ESP",
+  "Cape Verde":"CPV","Sweden":"SWE","Tunisia":"TUN","Iran":"IRN","New Zealand":"NZL","France":"FRA",
+  "Senegal":"SEN","Iraq":"IRQ","Norway":"NOR","Argentina":"ARG","England":"ENG","Portugal":"POR",
+  "Croatia":"CRO","Colombia":"COL","Italy":"ITA","Denmark":"DEN","Poland":"POL","Austria":"AUT",
+  "Panama":"PAN","Algeria":"ALG","Ghana":"GHA","Nigeria":"NGA","Cameroon":"CMR","Jordan":"JOR",
+  "Uzbekistan":"UZB","Costa Rica":"CRC","Honduras":"HON","Jamaica":"JAM","Peru":"PER","Chile":"CHI",
+  "Greece":"GRE","Serbia":"SRB","Ukraine":"UKR","Wales":"WAL","Romania":"ROU","Slovakia":"SVK",
+  "Hungary":"HUN","Russia":"RUS","Venezuela":"VEN","Bolivia":"BOL","Guinea":"GUI","Mali":"MLI",
+  "DR Congo":"COD","Gabon":"GAB","New Caledonia":"NCL","Bolivia":"BOL","Suriname":"SUR"
+};
+const code = n => CODE[n] || (n||"").slice(0,3).toUpperCase();
+const PLACEHOLD = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='28' height='20'><rect width='28' height='20' fill='%231b2238'/></svg>";
+
+/* ---- date helpers (operate on the screen's local clock) ---- */
+const DAY = 86400000;
+const iso = dt => dt.toISOString().slice(0,10);
+function dateRange(){
+  const now = new Date();
+  const t0 = new Date(CFG.tStart+'T00:00:00');
+  const t1 = new Date(CFG.tEnd+'T00:00:00');
+  const gEnd = new Date(CFG.groupEnd+'T00:00:00');
+  // results/upcoming window: today-3 .. today+3
+  let winA = new Date(now.getTime()-3*DAY), winB = new Date(now.getTime()+3*DAY);
+  // standings window: tournament start .. min(today, groupEnd)
+  let stA = t0, stB = new Date(Math.min(now.getTime(), gEnd.getTime()));
+  let lo = new Date(Math.min(winA.getTime(), stA.getTime()));
+  let hi = new Date(Math.max(winB.getTime(), stB.getTime()));
+  if(lo < t0) lo = t0;
+  if(hi > t1) hi = t1;
+  const days=[];
+  for(let d=new Date(lo); d<=hi; d=new Date(d.getTime()+DAY)) days.push(iso(d));
+  // safety cap: keep most-recent maxDays
+  return days.slice(-CFG.maxDays);
+}
+
+const LIVE_STATES = ['1H','2H','HT','ET','BT','P','LIVE','INPLAY','PEN'];
+function normalize(e){
+  const hs = e.intHomeScore, as = e.intAwayScore;
+  const played = hs!=null && as!=null && e.strStatus!=='NS';
+  const live = LIVE_STATES.includes((e.strStatus||'').toUpperCase());
+  return {
+    id:e.idEvent, date:e.dateEvent, ts:e.strTimestamp ? new Date(e.strTimestamp+'Z') : new Date(e.dateEvent+'T'+(e.strTime||'00:00:00')+'Z'),
+    home:e.strHomeTeam, away:e.strAwayTeam,
+    hb:e.strHomeTeamBadge||PLACEHOLD, ab:e.strAwayTeamBadge||PLACEHOLD,
+    hs:hs==null?null:+hs, as:as==null?null:+as,
+    group:(e.strGroup||'').trim(), round:e.intRound, status:e.strStatus||'',
+    venue:e.strVenue||'', city:e.strCity||'', played, live
+  };
+}
+
+async function pullData(){
+  const days = dateRange();
+  const results = await Promise.allSettled(days.map(d=>
+    fetch(api(d)).then(r=>r.ok?r.json():null).catch(()=>null)
+  ));
+  const byId = {};
+  let ok=0;
+  results.forEach(r=>{
+    if(r.status==='fulfilled' && r.value){
+      ok++;
+      (r.value.events||[]).forEach(e=>{ if(e&&e.idEvent) byId[e.idEvent]=normalize(e); });
+    }
+  });
+  const matches = Object.values(byId);
+  return { matches, anyOk: ok>0, total: matches.length };
+}
+
+/* ---- standings from played group matches ---- */
+function buildStandings(matches){
+  const groups={};
+  matches.filter(m=>m.group).forEach(m=>{
+    const g = groups[m.group] || (groups[m.group]={});
+    const T = name => g[name] || (g[name]={name,badge:null,P:0,W:0,D:0,L:0,GF:0,GA:0,Pts:0});
+    const h=T(m.home), a=T(m.away);
+    if(m.hb&&!h.badge) h.badge=m.hb;
+    if(m.ab&&!a.badge) a.badge=m.ab;
+    if(m.played){
+      h.P++;a.P++;h.GF+=m.hs;h.GA+=m.as;a.GF+=m.as;a.GA+=m.hs;
+      if(m.hs>m.as){h.W++;a.L++;h.Pts+=3;}
+      else if(m.hs<m.as){a.W++;h.L++;a.Pts+=3;}
+      else{h.D++;a.D++;h.Pts++;a.Pts++;}
+    }
+  });
+  const out={};
+  Object.keys(groups).sort().forEach(letter=>{
+    out[letter]=Object.values(groups[letter]).map(t=>({...t,GD:t.GF-t.GA}))
+      .sort((x,y)=> y.Pts-x.Pts || y.GD-x.GD || y.GF-x.GF || x.name.localeCompare(y.name));
+  });
+  return out;
+}
+
+/* ---- renderers ---- */
+const fmtDay = ts => ts.toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'});
+const fmtTime = ts => ts.toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'});
+
+function matchRow(m, mode){
+  const grp = m.group ? `<span class="grp-chip">GRP ${m.group}</span>` : '';
+  let center, meta;
+  if(mode==='result'){
+    const hw=m.hs>m.as, aw=m.as>m.hs;
+    center = `<div class="score"><span class="${hw?'winner':''}">${m.hs}</span><span class="x">–</span><span class="${aw?'winner':''}">${m.as}</span></div>`;
+    meta = m.live ? `<div class="meta livetag"><i></i>LIVE</div>` : `<div class="meta">${fmtDay(m.ts)} ${grp}</div>`;
+  } else {
+    center = `<div class="vs">${fmtTime(m.ts)}</div>`;
+    meta = `<div class="meta">${fmtDay(m.ts)} ${grp}</div>`;
+  }
+  return `<div class="match ${m.live?'live':(mode==='result'?'done':'')}">
+    <div class="side home"><img class="flag" src="${m.hb}" onerror="this.src='${PLACEHOLD}'"><span class="team-code">${code(m.home)}</span></div>
+    <div class="center">${center}${meta}</div>
+    <div class="side away"><img class="flag" src="${m.ab}" onerror="this.src='${PLACEHOLD}'"><span class="team-code">${code(m.away)}</span></div>
+  </div>`;
+}
+
+function renderView1(matches){
+  const now=Date.now();
+  const recent = matches.filter(m=>m.played || m.live)
+    .filter(m=> m.ts.getTime() >= now-3.2*DAY)
+    .sort((a,b)=> (b.live-a.live) || b.ts-a.ts).slice(0,6);
+  const upcoming = matches.filter(m=>!m.played && !m.live)
+    .filter(m=> m.ts.getTime() >= now-30*60000 && m.ts.getTime() <= now+3.2*DAY)
+    .sort((a,b)=> a.ts-b.ts).slice(0,6);
+
+  const rEl=document.getElementById('results'), fEl=document.getElementById('fixtures');
+  rEl.innerHTML = recent.length
+    ? recent.map(m=>matchRow(m,'result')).join('')
+    : `<div class="empty"><div class="big">No matches in the last 3 days</div><div class="small">Scores appear here as games finish</div></div>`;
+  fEl.innerHTML = upcoming.length
+    ? upcoming.map(m=>matchRow(m,'fixture')).join('')
+    : `<div class="empty"><div class="big">No fixtures in the next 3 days</div><div class="small">Check standings for the latest tables</div></div>`;
+
+  // sub-label reflects phase
+  const anyKnockout = matches.some(m=>!m.group && m.ts.getTime()>now-3*DAY);
+  document.getElementById('v1sub').textContent = anyKnockout ? 'Knockout Stage' : 'Group Stage';
+}
+
+function gflag(t){ return t.badge||PLACEHOLD; }
+function renderView2(standings){
+  const wrap=document.getElementById('groups');
+  const letters=Object.keys(standings);
+  if(!letters.length){
+    wrap.innerHTML=`<div class="empty" style="grid-column:1/-1">
+      <div class="big">Group tables build as results come in</div>
+      <div class="small">Standings populate automatically once group matches kick off</div></div>`;
+    return;
+  }
+  wrap.innerHTML = letters.map(L=>{
+    const teams=standings[L];
+    const rows=teams.map((t,i)=>`
+      <div class="grow ${i<2?'qual':''}">
+        <span class="pos">${i+1}</span>
+        <img class="gflag" src="${gflag(t)}" onerror="this.src='${PLACEHOLD}'">
+        <span class="gname">${code(t.name)}</span>
+        <span class="gp">${t.P}</span>
+        <span class="gpts">${t.Pts}</span>
+      </div>`).join('');
+    return `<div class="gcard">
+      <h3><span>Group ${L}</span><span class="gl">PLD · PTS</span></h3>
+      ${rows}
+    </div>`;
+  }).join('');
+}
+
+/* ---- chrome: clock, feed status, rotation ---- */
+function tickClock(){
+  const n=new Date();
+  document.getElementById('clock').textContent = n.toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'});
+  document.getElementById('today').textContent = n.toLocaleDateString(undefined,{weekday:'long',month:'long',day:'numeric'});
+}
+function setFeed(state,msg){
+  const el=document.getElementById('feed'); el.className='status-dot'+(state==='warn'?' warn':state==='err'?' err':'');
+  document.getElementById('feedtxt').textContent=msg;
+}
+function setUpdated(){ document.getElementById('updated').textContent=new Date().toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'}); }
+
+let view=0, rotTimer=null, progTimer=null;
+function showView(i){
+  view=i;
+  document.getElementById('view1').classList.toggle('active',i===0);
+  document.getElementById('view2').classList.toggle('active',i===1);
+  document.querySelectorAll('.dots .d').forEach(d=>d.classList.toggle('on',+d.dataset.i===i));
+}
+function startRotation(){
+  clearInterval(progTimer); clearTimeout(rotTimer);
+  const prog=document.getElementById('prog'); let start=Date.now();
+  progTimer=setInterval(()=>{
+    const p=Math.min(1,(Date.now()-start)/CFG.rotateMs);
+    prog.style.width=(p*100)+'%';
+    if(p>=1){ start=Date.now(); showView(view===0?1:0); }
+  },120);
+}
+
+/* ---- fit guard: shrink master scale if content would overflow ---- */
+function fitGuard(){
+  document.documentElement.style.setProperty('--base','2.55vmin');
+  // standings view is the densest; nudge down on very short panels
+  const h=window.innerHeight, w=window.innerWidth, ar=w/h;
+  let base=2.55;
+  if(ar>1.45) base=2.3;     // wider/short zone
+  if(ar<1.2)  base=2.75;    // taller zone
+  document.documentElement.style.setProperty('--base', base+'vmin');
+}
+
+/* ---- demo fallback so the screen is never blank ---- */
+function demoData(){
+  const mk=(h,a,hs,as,g,off,hb,ab)=>({id:h+a,home:h,away:a,hb:hb||PLACEHOLD,ab:ab||PLACEHOLD,
+    hs,as,group:g,status:hs==null?'NS':'FT',played:hs!=null,live:false,
+    ts:new Date(Date.now()+off*DAY)});
+  return [
+    mk("Mexico","South Africa",2,1,"A",-1), mk("USA","Paraguay",3,0,"D",-1),
+    mk("Brazil","Morocco",1,1,"E",-1), mk("Germany","Curaçao",4,0,"F",-2),
+    mk("Spain","Cape Verde",2,0,"H",-2), mk("Netherlands","Japan",2,2,"L",-2),
+    mk("France","Senegal",null,null,"I",0), mk("Iraq","Norway",null,null,"I",0),
+    mk("Argentina","Croatia",null,null,"B",1), mk("England","Wales",null,null,"K",1),
+    mk("Portugal","Ghana",null,null,"J",2), mk("Belgium","Egypt",null,null,"G",2)
+  ];
+}
+
+/* ---- main ---- */
+async function load(){
+  setFeed('warn','Fetching…');
+  let data;
+  try{ data = await pullData(); }catch(e){ data={matches:[],anyOk:false}; }
+  let matches = data.matches, demo=false;
+  if(!data.anyOk || matches.length===0){ matches=demoData(); demo=true; }
+  renderView1(matches);
+  renderView2(buildStandings(matches));
+  setUpdated();
+  if(demo) setFeed('err','Sample data — live feed offline');
+  else setFeed('ok','Live · TheSportsDB');
+}
+
+function init(){
+  fitGuard(); tickClock();
+  setInterval(tickClock,1000);
+  window.addEventListener('resize',fitGuard);
+  showView(0); startRotation();
+  load();
+  setInterval(load, CFG.refreshMs);
+}
+init();
+</script>
+</body>
+</html>
