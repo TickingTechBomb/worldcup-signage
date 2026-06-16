@@ -21,7 +21,7 @@
     --win:#1fd17a;
     --gold:#ffcf5c;
     --qual:rgba(31,209,122,.16);
-    --base: 2.55vmin; /* master scale knob, recalculated by JS to fit */
+    --base: 30px; /* master scale knob, recalculated responsively by JS */
   }
   *{margin:0;padding:0;box-sizing:border-box}
   html,body{height:100%;width:100%;overflow:hidden;background:var(--bg);}
@@ -32,7 +32,7 @@
     -webkit-font-smoothing:antialiased;
   }
   .app{
-    position:absolute;inset:0;
+    position:absolute;top:0;left:0;right:0;bottom:0;width:100%;height:100%;
     display:flex;flex-direction:column;
     padding:1.7em 1.9em 1.4em;
     background:
@@ -68,7 +68,7 @@
 
   /* ---------- View frame ---------- */
   .stage{position:relative;flex:1 1 auto;margin-top:1.25em;min-height:0}
-  .view{position:absolute;inset:0;display:flex;flex-direction:column;opacity:0;transform:translateY(1.2em);
+  .view{position:absolute;top:0;left:0;right:0;bottom:0;width:100%;height:100%;display:flex;flex-direction:column;opacity:0;transform:translateY(1.2em);
     transition:opacity .6s ease,transform .6s ease;pointer-events:none}
   .view.active{opacity:1;transform:none;pointer-events:auto}
 
@@ -239,7 +239,10 @@ const CFG = {
   groupEnd: '2026-06-27',     // group stage end (standings window)
   maxDays: 26                 // safety cap on number of day-calls
 };
-const api = d => `https://www.thesportsdb.com/api/v1/json/${CFG.key}/eventsday.php?d=${d}&l=${CFG.league}`;
+const base = `https://www.thesportsdb.com/api/v1/json/${CFG.key}`;
+const apiRound = r => `${base}/eventsround.php?id=${CFG.league}&r=${r}&s=2026`; // matchday r, includes group letters
+const apiPast  = `${base}/eventspastleague.php?id=${CFG.league}`;  // last finished (all stages)
+const apiNext  = `${base}/eventsnextleague.php?id=${CFG.league}`;  // next scheduled (all stages)
 
 /* ---- 3-letter codes for compact display ---- */
 const CODE = {
@@ -260,27 +263,8 @@ const CODE = {
 const code = n => CODE[n] || (n||"").slice(0,3).toUpperCase();
 const PLACEHOLD = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='28' height='20'><rect width='28' height='20' fill='%231b2238'/></svg>";
 
-/* ---- date helpers (operate on the screen's local clock) ---- */
+/* ---- time constant ---- */
 const DAY = 86400000;
-const iso = dt => dt.toISOString().slice(0,10);
-function dateRange(){
-  const now = new Date();
-  const t0 = new Date(CFG.tStart+'T00:00:00');
-  const t1 = new Date(CFG.tEnd+'T00:00:00');
-  const gEnd = new Date(CFG.groupEnd+'T00:00:00');
-  // results/upcoming window: today-3 .. today+3
-  let winA = new Date(now.getTime()-3*DAY), winB = new Date(now.getTime()+3*DAY);
-  // standings window: tournament start .. min(today, groupEnd)
-  let stA = t0, stB = new Date(Math.min(now.getTime(), gEnd.getTime()));
-  let lo = new Date(Math.min(winA.getTime(), stA.getTime()));
-  let hi = new Date(Math.max(winB.getTime(), stB.getTime()));
-  if(lo < t0) lo = t0;
-  if(hi > t1) hi = t1;
-  const days=[];
-  for(let d=new Date(lo); d<=hi; d=new Date(d.getTime()+DAY)) days.push(iso(d));
-  // safety cap: keep most-recent maxDays
-  return days.slice(-CFG.maxDays);
-}
 
 const LIVE_STATES = ['1H','2H','HT','ET','BT','P','LIVE','INPLAY','PEN'];
 function normalize(e){
@@ -297,21 +281,34 @@ function normalize(e){
   };
 }
 
+function getJSON(url){
+  return fetch(url).then(function(r){ return r.ok ? r.json() : null; }).catch(function(){ return null; });
+}
 async function pullData(){
-  const days = dateRange();
-  const results = await Promise.allSettled(days.map(d=>
-    fetch(api(d)).then(r=>r.ok?r.json():null).catch(()=>null)
-  ));
-  const byId = {};
-  let ok=0;
-  results.forEach(r=>{
-    if(r.status==='fulfilled' && r.value){
-      ok++;
-      (r.value.events||[]).forEach(e=>{ if(e&&e.idEvent) byId[e.idEvent]=normalize(e); });
-    }
+  // 5 calls total: three group matchdays (with group letters + scores) + recent + upcoming (all stages)
+  const urls = [apiRound(1), apiRound(2), apiRound(3), apiPast, apiNext];
+  const responses = await Promise.all(urls.map(getJSON));
+  const byId = {}; let ok = 0;
+  responses.forEach(function(j){
+    if(!j) return;
+    ok++;
+    const evs = (j && j.events) ? j.events : [];
+    evs.forEach(function(e){
+      if(!e || !e.idEvent) return;
+      const n = normalize(e);
+      const p = byId[n.id];
+      if(!p){ byId[n.id] = n; return; }
+      if(!p.group && n.group) p.group = n.group;                 // round calls carry the group letter
+      if(p.hs==null && n.hs!=null){ p.hs = n.hs; p.as = n.as; }   // fill scores from whichever has them
+      if(n.played) p.played = true;
+      if(n.live) p.live = true;
+      if(!p.status && n.status) p.status = n.status;
+      if((!p.hb || p.hb===PLACEHOLD) && n.hb && n.hb!==PLACEHOLD) p.hb = n.hb;
+      if((!p.ab || p.ab===PLACEHOLD) && n.ab && n.ab!==PLACEHOLD) p.ab = n.ab;
+    });
   });
-  const matches = Object.values(byId);
-  return { matches, anyOk: ok>0, total: matches.length };
+  const matches = Object.keys(byId).map(function(k){ return byId[k]; });
+  return { matches: matches, anyOk: ok>0, total: matches.length };
 }
 
 /* ---- standings from played group matches ---- */
@@ -440,13 +437,13 @@ function startRotation(){
 
 /* ---- fit guard: shrink master scale if content would overflow ---- */
 function fitGuard(){
-  document.documentElement.style.setProperty('--base','2.55vmin');
-  // standings view is the densest; nudge down on very short panels
-  const h=window.innerHeight, w=window.innerWidth, ar=w/h;
-  let base=2.55;
-  if(ar>1.45) base=2.3;     // wider/short zone
-  if(ar<1.2)  base=2.75;    // taller zone
-  document.documentElement.style.setProperty('--base', base+'vmin');
+  // Responsive: scale type to viewport so it fills any aspect ratio (16:9, 4:3, ultrawide).
+  const w = window.innerWidth || 1280, h = window.innerHeight || 720, ar = w / h;
+  let base = h * 0.030;          // reference ~32px at 1080p
+  if(ar >= 1.6) base = h * 0.032; // 16:9 and wider: fill more
+  if(ar < 1.2)  base = h * 0.028; // tall/portrait: leave headroom
+  base = Math.max(13, Math.min(base, 60));
+  document.documentElement.style.setProperty('--base', base + 'px');
 }
 
 /* ---- demo fallback so the screen is never blank ---- */
