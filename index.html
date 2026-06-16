@@ -45,13 +45,13 @@
   .head{display:flex;align-items:center;justify-content:space-between;gap:1em;flex:0 0 auto;}
   .brand{display:flex;align-items:center;gap:.8em;min-width:0;}
   .crest{
-    width:2.9em;height:2.9em;border-radius:.7em;flex:0 0 auto;
-    background:linear-gradient(150deg,var(--accent),#7a32ff);
-    display:flex;align-items:center;justify-content:center;
-    box-shadow:0 .3em 1.2em rgba(63,111,255,.35);
-    font-size:1em;
+    width:3.1em;height:3.1em;border-radius:.7em;flex:0 0 auto;
+    display:flex;align-items:center;justify-content:center;overflow:hidden;font-size:1em;
+    background:#e9eaee;box-shadow:0 .25em .9em rgba(0,0,0,.35);
   }
-  .crest svg{width:62%;height:62%}
+  .crest-img{width:100%;height:100%;object-fit:contain;display:block}
+  .crest.fallback{background:linear-gradient(150deg,var(--accent),#7a32ff);box-shadow:0 .3em 1.2em rgba(63,111,255,.35)}
+  .crest.fallback::after{content:"\2605";color:#fff;font-size:1.5em}
   .brand .t1{font-size:.78em;letter-spacing:.32em;color:var(--accent2);font-weight:700;text-transform:uppercase}
   .brand .t2{font-size:1.55em;font-weight:800;letter-spacing:-.01em;line-height:1.05}
   .head-right{display:flex;align-items:center;gap:1.3em;flex:0 0 auto}
@@ -90,7 +90,7 @@
   .match{
     background:linear-gradient(180deg,var(--panel) 0%,var(--panel2) 100%);
     border:1px solid var(--line);border-radius:.75em;padding:.62em .8em;
-    display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:.5em;position:relative;overflow:hidden
+    display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:.5em;position:relative;overflow:hidden;flex:0 0 auto
   }
   .match::before{content:"";position:absolute;left:0;top:0;bottom:0;width:.22em;background:transparent}
   .match.live::before{background:var(--live)}
@@ -139,6 +139,28 @@
     font-size:.56em;color:var(--muted2);text-transform:uppercase;letter-spacing:.08em;padding-bottom:.15em}
   .gcard .ghdr span:nth-child(3){text-align:left}
 
+  /* ---------- View 3: Tournament Stats ---------- */
+  .v3{display:flex;flex-direction:column;flex:1 1 auto;min-height:0}
+  .tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:.7em;flex:0 0 auto}
+  .tile{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--line);border-radius:.7em;padding:.55em .8em}
+  .tile .tl{font-size:.66em;letter-spacing:.05em;color:var(--muted);text-transform:uppercase}
+  .tile .tv{font-size:1.5em;font-weight:800;font-variant-numeric:tabular-nums;margin-top:.08em}
+  .tile .tv.sm{font-size:1.0em;margin-top:.28em;font-weight:700}
+  .panels{display:grid;grid-template-columns:1.05fr 1.2fr 1fr;gap:.8em;flex:1 1 auto;min-height:0;margin-top:.8em}
+  .panel{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--line);border-radius:.75em;padding:.55em .8em;display:flex;flex-direction:column;min-height:0;overflow:hidden}
+  .panel .ph{font-size:.72em;letter-spacing:.12em;text-transform:uppercase;font-weight:700;margin-bottom:.45em;display:flex;justify-content:space-between;align-items:center}
+  .panel .ph .u{color:var(--muted2);font-size:.8em;letter-spacing:.06em}
+  .ph.pr{color:var(--accent2)} .ph.gb{color:var(--gold)} .ph.bd{color:var(--accent)}
+  .srow{display:grid;align-items:center;gap:.5em;padding:.2em 0;border-top:1px solid rgba(255,255,255,.05);font-size:.8em}
+  .srow:first-child{border-top:none}
+  .srow .rk{color:var(--muted2);font-weight:700;text-align:center}
+  .srow .nm{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .srow .mut{color:var(--muted);text-align:right;font-variant-numeric:tabular-nums}
+  .srow .big{font-weight:800;text-align:right;font-variant-numeric:tabular-nums}
+  .srow .big.gold{color:var(--gold)} .srow .big.blue{color:var(--accent)}
+  .srow .badge{width:1.5em;height:1.5em;border-radius:50%;object-fit:cover;background:#1b2238;box-shadow:0 0 0 1px rgba(255,255,255,.08)}
+  .mini-empty{color:var(--muted);font-size:.78em;padding:.5em .1em;line-height:1.5}
+
   /* ---------- Footer / rotation ---------- */
   .foot{flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;margin-top:1em;gap:1em}
   .dots{display:flex;gap:.5em;align-items:center}
@@ -155,7 +177,7 @@
   <header class="head">
     <div class="brand">
       <div class="crest" aria-hidden="true">
-        <svg viewBox="0 0 24 24" fill="none"><path d="M12 2l2.4 4.9 5.4.8-3.9 3.8.9 5.4L12 19l-4.8 2.6.9-5.4L4.2 8.4l5.4-.8L12 2z" fill="#fff" opacity=".95"/></svg>
+        <img class="crest-img" src="https://raw.githubusercontent.com/TickingTechBomb/worldcup-signage/refs/heads/main/wc-trophy.png" alt="" onerror="this.remove();this.parentNode.classList.add('fallback')">
       </div>
       <div>
         <div class="t1">FIFA World Cup</div>
@@ -212,10 +234,27 @@
       </div>
       <div class="groups" id="groups"></div>
     </section>
+
+    <!-- VIEW 3 -->
+    <section class="view" id="view3">
+      <div class="view-title">
+        <span class="accent-bar"></span>
+        <h2>Tournament Stats</h2>
+        <span class="sub">Power rankings &middot; goals &middot; defenses</span>
+      </div>
+      <div class="v3">
+        <div class="tiles" id="tiles"></div>
+        <div class="panels">
+          <div class="panel"><div class="ph pr"><span>Power Ranking</span><span class="u">PLD&middot;GD&middot;PTS</span></div><div id="pr"></div></div>
+          <div class="panel"><div class="ph gb"><span>Golden Boot</span><span class="u">GLS</span></div><div id="scorers"></div></div>
+          <div class="panel"><div class="ph bd"><span>Best Defenses</span><span class="u">GA&middot;CS</span></div><div id="bd"></div></div>
+        </div>
+      </div>
+    </section>
   </div>
 
   <footer class="foot">
-    <div class="dots"><span class="d on" data-i="0"></span><span class="d" data-i="1"></span></div>
+    <div class="dots"><span class="d on" data-i="0"></span><span class="d" data-i="1"></span><span class="d" data-i="2"></span></div>
     <div class="progress"><i id="prog"></i></div>
     <div class="updated">Updated <span id="updated">—</span></div>
   </footer>
@@ -237,7 +276,8 @@ const CFG = {
   tStart: '2026-06-11',       // tournament start
   tEnd:   '2026-07-19',       // tournament end
   groupEnd: '2026-06-27',     // group stage end (standings window)
-  maxDays: 26                 // safety cap on number of day-calls
+  maxDays: 26,                // (legacy) safety cap
+  scorerCallsPerLoad: 6       // timeline calls per refresh for the Golden Boot
 };
 const base = `https://www.thesportsdb.com/api/v1/json/${CFG.key}`;
 const apiRound = r => `${base}/eventsround.php?id=${CFG.league}&r=${r}&s=2026`; // matchday r, includes group letters
@@ -418,11 +458,11 @@ function setFeed(state,msg){
 }
 function setUpdated(){ document.getElementById('updated').textContent=new Date().toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'}); }
 
+const NVIEWS=3;
 let view=0, rotTimer=null, progTimer=null;
 function showView(i){
   view=i;
-  document.getElementById('view1').classList.toggle('active',i===0);
-  document.getElementById('view2').classList.toggle('active',i===1);
+  for(let k=1;k<=NVIEWS;k++){ document.getElementById('view'+k).classList.toggle('active', i===k-1); }
   document.querySelectorAll('.dots .d').forEach(d=>d.classList.toggle('on',+d.dataset.i===i));
 }
 function startRotation(){
@@ -431,18 +471,17 @@ function startRotation(){
   progTimer=setInterval(()=>{
     const p=Math.min(1,(Date.now()-start)/CFG.rotateMs);
     prog.style.width=(p*100)+'%';
-    if(p>=1){ start=Date.now(); showView(view===0?1:0); }
+    if(p>=1){ start=Date.now(); showView((view+1)%NVIEWS); }
   },120);
 }
 
 /* ---- fit guard: shrink master scale if content would overflow ---- */
 function fitGuard(){
-  // Responsive: scale type to viewport so it fills any aspect ratio (16:9, 4:3, ultrawide).
   const w = window.innerWidth || 1280, h = window.innerHeight || 720, ar = w / h;
-  let base = h * 0.030;          // reference ~32px at 1080p
-  if(ar >= 1.6) base = h * 0.032; // 16:9 and wider: fill more
-  if(ar < 1.2)  base = h * 0.028; // tall/portrait: leave headroom
-  base = Math.max(13, Math.min(base, 60));
+  let base = h * 0.0265;            // height-driven so densest screen fits; width fills via columns
+  if(ar < 1.2)  base = h * 0.030;
+  if(ar > 2.1)  base = h * 0.0235;
+  base = Math.max(12, Math.min(base, 52));
   document.documentElement.style.setProperty('--base', base + 'px');
 }
 
@@ -461,6 +500,103 @@ function demoData(){
   ];
 }
 
+/* ---- View 3: tournament-wide stats ---- */
+function computeTeamStats(matches){
+  const m={};
+  matches.filter(x=>x.group).forEach(x=>{
+    const T=n=>m[n]||(m[n]={name:n,badge:null,P:0,W:0,D:0,L:0,GF:0,GA:0,Pts:0,CS:0});
+    const h=T(x.home), a=T(x.away);
+    if(x.hb && x.hb!==PLACEHOLD && !h.badge) h.badge=x.hb;
+    if(x.ab && x.ab!==PLACEHOLD && !a.badge) a.badge=x.ab;
+    if(x.played){
+      h.P++; a.P++; h.GF+=x.hs; h.GA+=x.as; a.GF+=x.as; a.GA+=x.hs;
+      if(x.as===0) h.CS++; if(x.hs===0) a.CS++;
+      if(x.hs>x.as){ h.W++; a.L++; h.Pts+=3; }
+      else if(x.hs<x.as){ a.W++; h.L++; a.Pts+=3; }
+      else { h.D++; a.D++; h.Pts++; a.Pts++; }
+    }
+  });
+  return Object.keys(m).map(function(k){ const t=m[k]; t.GD=t.GF-t.GA; return t; });
+}
+function headlineStats(matches){
+  const played=matches.filter(x=>x.played);
+  const goals=played.reduce((s,x)=>s+x.hs+x.as,0);
+  let cs=0; played.forEach(x=>{ if(x.as===0)cs++; if(x.hs===0)cs++; });
+  let big=null, bd=-1;
+  played.forEach(x=>{ const d=Math.abs(x.hs-x.as); const tot=x.hs+x.as;
+    if(d>bd || (d===bd && big && tot>(big.hs+big.as))){ bd=d; big=x; } });
+  return { goals:goals, gpm:played.length?(goals/played.length).toFixed(1):'-', cs:cs, n:played.length, big:big };
+}
+let teamBadge={};
+function badgeImg(src){ return '<img class="badge" src="'+(src||PLACEHOLD)+'" onerror="this.src=\''+PLACEHOLD+'\'">'; }
+function tile(label,val,small){ return '<div class="tile"><div class="tl">'+label+'</div><div class="tv'+(small?' sm':'')+'">'+val+'</div></div>'; }
+function miniEmpty(msg){ return '<div class="mini-empty">'+msg+'</div>'; }
+function renderView3(matches, demo){
+  const stats=computeTeamStats(matches);
+  teamBadge={}; stats.forEach(function(t){ teamBadge[t.name]=t.badge; });
+  const hs=headlineStats(matches);
+  const big = hs.big ? (code(hs.big.home)+' '+hs.big.hs+'-'+hs.big.as+' '+code(hs.big.away)) : '-';
+  document.getElementById('tiles').innerHTML =
+    tile('Total goals', hs.goals) + tile('Goals / match', hs.gpm) +
+    tile('Biggest win', big, true) + tile('Clean sheets', hs.cs);
+  const pr=stats.filter(t=>t.P>0).sort((a,b)=> b.Pts-a.Pts || b.GD-a.GD || b.GF-a.GF || a.name.localeCompare(b.name)).slice(0,8);
+  document.getElementById('pr').innerHTML = pr.length ? pr.map(function(t,i){
+    return '<div class="srow" style="grid-template-columns:1.3em 1.7em 1fr auto auto auto">'+
+      '<span class="rk">'+(i+1)+'</span>'+badgeImg(t.badge)+'<span class="nm">'+code(t.name)+'</span>'+
+      '<span class="mut">'+t.P+'</span><span class="mut">'+(t.GD>=0?'+':'')+t.GD+'</span><span class="big">'+t.Pts+'</span></div>';
+  }).join('') : miniEmpty('Rankings build as group matches are played.');
+  const bd=stats.filter(t=>t.P>0).sort((a,b)=> a.GA-b.GA || b.CS-a.CS || b.Pts-a.Pts).slice(0,8);
+  document.getElementById('bd').innerHTML = bd.length ? bd.map(function(t,i){
+    return '<div class="srow" style="grid-template-columns:1.3em 1.7em 1fr auto auto">'+
+      '<span class="rk">'+(i+1)+'</span>'+badgeImg(t.badge)+'<span class="nm">'+code(t.name)+'</span>'+
+      '<span class="mut">'+t.GA+'</span><span class="big blue">'+t.CS+'</span></div>';
+  }).join('') : miniEmpty('Defensive records appear after kickoff.');
+  renderScorers(demo);
+}
+const SCORE_KEY='wc26_scorers_v1';
+let scoreCache=(function(){ try{ return JSON.parse(localStorage.getItem(SCORE_KEY))||{}; }catch(e){ return {}; } })();
+let liveScorers={};
+const SAMPLE_SCORERS=[{p:'K. Mbappe',t:'France',goals:4},{p:'J. Alvarez',t:'Argentina',goals:3},{p:'H. Kane',t:'England',goals:3},{p:'Vinicius Jr',t:'Brazil',goals:3},{p:'P. Foden',t:'England',goals:2},{p:'L. Yamal',t:'Spain',goals:2}];
+function abbrev(name){ const p=(name||'').trim().split(/\s+/); return p.length<2?name:(p[0].charAt(0)+'. '+p.slice(1).join(' ')); }
+function parseGoals(timeline){
+  const out=[];
+  (timeline||[]).forEach(function(e){
+    if(e.strTimeline==='Goal' && e.strTimelineDetail!=='Own Goal' && e.strPlayer){ out.push({ p:abbrev(e.strPlayer), t:e.strTeam }); }
+  });
+  return out;
+}
+function tallyScorers(){
+  const t={};
+  function add(list){ (list||[]).forEach(function(g){ const k=g.p+'|'+g.t; (t[k]||(t[k]={p:g.p,t:g.t,goals:0})).goals++; }); }
+  Object.keys(scoreCache).forEach(function(id){ add(scoreCache[id]); });
+  Object.keys(liveScorers).forEach(function(id){ add(liveScorers[id]); });
+  return Object.keys(t).map(function(k){ return t[k]; }).sort(function(a,b){ return b.goals-a.goals || a.p.localeCompare(b.p); });
+}
+function renderScorers(demo){
+  let top=tallyScorers().slice(0,6);
+  if(top.length===0 && demo) top=SAMPLE_SCORERS;
+  const el=document.getElementById('scorers');
+  el.innerHTML = top.length ? top.map(function(s,i){
+    return '<div class="srow" style="grid-template-columns:1.3em 1.7em 1fr auto 2.2em">'+
+      '<span class="rk">'+(i+1)+'</span>'+badgeImg(teamBadge[s.t])+'<span class="nm">'+s.p+'</span>'+
+      '<span class="mut">'+code(s.t)+'</span><span class="big gold">'+s.goals+'</span></div>';
+  }).join('') : miniEmpty('Top scorers appear after the first finished matches.');
+}
+async function updateScorers(matches, demo){
+  const isReal=function(id){ return /^[0-9]+$/.test(String(id)); };
+  const finished=matches.filter(m=>m.played && !m.live && isReal(m.id));
+  const live=matches.filter(m=>m.live && isReal(m.id));
+  const need=finished.filter(m=>!scoreCache[m.id]).slice(0, CFG.scorerCallsPerLoad);
+  const jobs=[];
+  need.forEach(function(m){ jobs.push(getJSON(base+'/lookuptimeline.php?id='+m.id).then(function(j){ scoreCache[m.id]=parseGoals(j&&j.timeline); })); });
+  live.forEach(function(m){ jobs.push(getJSON(base+'/lookuptimeline.php?id='+m.id).then(function(j){ liveScorers[m.id]=parseGoals(j&&j.timeline); })); });
+  if(jobs.length){
+    try{ await Promise.all(jobs); }catch(e){}
+    try{ localStorage.setItem(SCORE_KEY, JSON.stringify(scoreCache)); }catch(e){}
+    renderScorers(demo);
+  }
+}
+
 /* ---- main ---- */
 async function load(){
   setFeed('warn','Fetching…');
@@ -470,6 +606,8 @@ async function load(){
   if(!data.anyOk || matches.length===0){ matches=demoData(); demo=true; }
   renderView1(matches);
   renderView2(buildStandings(matches));
+  renderView3(matches, demo);
+  updateScorers(matches, demo);
   setUpdated();
   if(demo) setFeed('err','Sample data — live feed offline');
   else setFeed('ok','Live · TheSportsDB');
