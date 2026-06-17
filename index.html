@@ -3,6 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- Tell the browser/YoDeck webview not to serve this page from cache, so each
+     reload revalidates against GitHub. Paired with the JS cache-buster below. -->
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <title>FIFA World Cup 2026 — Breakroom Dashboard</title>
 <style>
   :root{
@@ -97,8 +102,8 @@
   .match.done::before{background:var(--accent2)}
   .side{display:flex;align-items:center;gap:.55em;min-width:0}
   .side.away{flex-direction:row-reverse;text-align:right}
-  .flag{width:1.85em;height:1.3em;border-radius:.18em;object-fit:cover;background:#1b2238;flex:0 0 auto;
-    box-shadow:0 0 0 1px rgba(255,255,255,.08)}
+  .flag{width:1.6em;height:1.6em;border-radius:.18em;object-fit:contain;background:#1b2238;flex:0 0 auto;
+    box-shadow:0 0 0 1px rgba(255,255,255,.08)}  /* square + contain: crests are logos, never crop them */
   .team-code{font-weight:700;font-size:.95em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .center{display:flex;flex-direction:column;align-items:center;gap:.1em;min-width:3.4em}
   .score{font-size:1.18em;font-weight:800;font-variant-numeric:tabular-nums;letter-spacing:.04em}
@@ -130,8 +135,8 @@
   .grow.qual{background:linear-gradient(90deg,var(--qual),transparent);border-radius:.3em;
     margin:0 -.2em;padding-left:.2em;padding-right:.2em}
   .grow .pos{color:var(--muted2);font-weight:700;text-align:center}
-  .grow .gflag{width:1.45em;height:1.02em;border-radius:.14em;object-fit:cover;background:#1b2238;
-    box-shadow:0 0 0 1px rgba(255,255,255,.08)}
+  .grow .gflag{width:1.45em;height:1.3em;border-radius:.14em;object-fit:contain;background:#1b2238;
+    box-shadow:0 0 0 1px rgba(255,255,255,.08)}  /* contain so the full crest shows, no vertical crop */
   .grow .gname{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .grow .gp{color:var(--muted);font-variant-numeric:tabular-nums;width:1.4em;text-align:center}
   .grow .gpts{font-weight:800;font-variant-numeric:tabular-nums;width:1.4em;text-align:center}
@@ -284,7 +289,9 @@ const CFG = {
   scorerMaxTries: 12,         // chances a match gets for its timeline to fill in before we stop chasing it
   tz: 'America/New_York',     // game-window timezone (handles EST/EDT automatically)
   windowStartHour: 11,        // only pull from the API between 11:00am and 1:00am ET (when games run);
-  windowEndHour: 1            // outside that window screens show the last-good snapshot, no API calls
+  windowEndHour: 1,           // outside that window screens show the last-good snapshot, no API calls
+  reloadMs: 30 * 60 * 1000    // auto cache-buster: re-pull this HTML every 30 min so a GitHub/YoDeck
+                              // cache can't pin the screens to a stale copy (no manual ?v= bumping)
 };
 const base = `https://www.thesportsdb.com/api/v1/json/${CFG.key}`;
 const apiRound = r => `${base}/eventsround.php?id=${CFG.league}&r=${r}&s=2026`; // matchday r, includes group letters
@@ -714,6 +721,23 @@ async function load(){
   }
 }
 
+/* ---- auto cache-buster ----
+   GitHub Pages / raw / the YoDeck webview all cache this HTML, so a fresh deploy
+   can sit unseen on the screens for a while. On a timer we reload to a unique URL
+   (…?cb=<timestamp>) — a query string no cache has seen — which forces a clean
+   re-fetch of the newest version. localStorage (snapshot + scorer cache) survives
+   the reload, so the screen repaints instantly with no blank flash and nobody has
+   to bump a ?v= by hand. If a screen rotates this asset off-screen first, the timer
+   simply fires in the background (or the next load is fresh anyway). */
+function hardReload(){
+  try{
+    const u = new URL(location.href);
+    u.hash = '';
+    u.searchParams.set('cb', Date.now());
+    location.replace(u.toString());
+  }catch(e){ location.reload(); }
+}
+
 function init(){
   fitGuard(); tickClock();
   setInterval(tickClock,1000);
@@ -721,6 +745,7 @@ function init(){
   showView(0); startRotation();
   load();
   setInterval(load, CFG.refreshMs);
+  setTimeout(hardReload, CFG.reloadMs);   // re-pull the page itself every 30 min, cache-busted
 }
 init();
 </script>
