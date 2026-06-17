@@ -269,15 +269,22 @@
      on every page load (YoDeck reloads the page each rotation).
    ============================================================ */
 const CFG = {
-  key: '123',                 // free public TheSportsDB key (swap for a Patreon key for higher limits)
+  key: '123',                 // TheSportsDB key. NOTE: the free public '123' key does NOT return live
+                              // 2026 results — every match comes back "NS"/null and the past-results
+                              // endpoint returns the 2022 final. A Patreon key is required for live
+                              // scores. Put the live key here on the deployed copy.
   league: '4429',             // FIFA World Cup
-  rotateMs: 15000,            // time on each screen
-  refreshMs: 4 * 60 * 1000,   // re-pull data in background
+  rotateMs: 15000,            // time on each on-screen view (visual only — no API call)
+  refreshMs: 10 * 60 * 1000,  // background data re-pull. 10 min is plenty: 6 screens, ~7-10 min rotation
   tStart: '2026-06-11',       // tournament start
   tEnd:   '2026-07-19',       // tournament end
   groupEnd: '2026-06-27',     // group stage end (standings window)
   maxDays: 26,                // (legacy) safety cap
-  scorerCallsPerLoad: 6       // timeline calls per refresh for the Golden Boot
+  scorerCallsPerLoad: 10,     // timeline calls per refresh for the Golden Boot
+  scorerMaxTries: 12,         // chances a match gets for its timeline to fill in before we stop chasing it
+  tz: 'America/New_York',     // game-window timezone (handles EST/EDT automatically)
+  windowStartHour: 11,        // only pull from the API between 11:00am and 1:00am ET (when games run);
+  windowEndHour: 1            // outside that window screens show the last-good snapshot, no API calls
 };
 const base = `https://www.thesportsdb.com/api/v1/json/${CFG.key}`;
 const apiRound = r => `${base}/eventsround.php?id=${CFG.league}&r=${r}&s=2026`; // matchday r, includes group letters
@@ -305,6 +312,38 @@ const PLACEHOLD = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/sv
 
 /* ---- time constant ---- */
 const DAY = 86400000;
+
+/* ---- game-window gate: skip all API calls outside playing hours ----
+   Games run ~11:00am–1:00am ET, so there's no reason to hit the API overnight.
+   Off-hours the dashboard keeps showing the last-good snapshot (below). */
+function localHour(){
+  try{ return parseInt(new Date().toLocaleString('en-US',{timeZone:CFG.tz,hour12:false,hour:'2-digit'}),10)%24; }
+  catch(e){ return new Date().getHours(); }
+}
+function inGameWindow(){
+  const h=localHour();
+  return CFG.windowStartHour <= CFG.windowEndHour
+    ? (h>=CFG.windowStartHour && h<CFG.windowEndHour)
+    : (h>=CFG.windowStartHour || h<CFG.windowEndHour);
+}
+
+/* ---- last-good snapshot so overnight reloads (and feed hiccups) need no API call ---- */
+const SNAP_KEY='wc26_snap_v1';
+function saveSnap(matches){
+  try{
+    const slim=matches.filter(m=>m.id!=null).map(m=>({id:m.id,home:m.home,away:m.away,hb:m.hb,ab:m.ab,
+      hs:m.hs,as:m.as,group:m.group,status:m.status,played:m.played,live:m.live,ts:m.ts.toISOString()}));
+    localStorage.setItem(SNAP_KEY, JSON.stringify({ts:Date.now(),matches:slim}));
+  }catch(e){}
+}
+function loadSnap(){
+  try{
+    const o=JSON.parse(localStorage.getItem(SNAP_KEY));
+    if(!o||!o.matches||!o.matches.length) return null;
+    o.matches.forEach(m=>{ m.ts=new Date(m.ts); });
+    return o;
+  }catch(e){ return null; }
+}
 
 const LIVE_STATES = ['1H','2H','HT','ET','BT','P','LIVE','INPLAY','PEN'];
 function normalize(e){
@@ -553,7 +592,9 @@ function renderView3(matches, demo){
   }).join('') : miniEmpty('Defensive records appear after kickoff.');
   renderScorers(demo);
 }
-const SCORE_KEY='wc26_scorers_v1';
+/* v2 cache: each entry is {g:[goals], n:tries, len:lastTimelineLen, same:unchangedStreak}.
+   Bumping v1 -> v2 also discards any old caches that were poisoned with empty timelines. */
+const SCORE_KEY='wc26_scorers_v2';
 let scoreCache=(function(){ try{ return JSON.parse(localStorage.getItem(SCORE_KEY))||{}; }catch(e){ return {}; } })();
 let liveScorers={};
 const SAMPLE_SCORERS=[{p:'K. Mbappe',t:'France',goals:4},{p:'J. Alvarez',t:'Argentina',goals:3},{p:'H. Kane',t:'England',goals:3},{p:'Vinicius Jr',t:'Brazil',goals:3},{p:'P. Foden',t:'England',goals:2},{p:'L. Yamal',t:'Spain',goals:2}];
@@ -568,7 +609,7 @@ function parseGoals(timeline){
 function tallyScorers(){
   const t={};
   function add(list){ (list||[]).forEach(function(g){ const k=g.p+'|'+g.t; (t[k]||(t[k]={p:g.p,t:g.t,goals:0})).goals++; }); }
-  Object.keys(scoreCache).forEach(function(id){ add(scoreCache[id]); });
+  Object.keys(scoreCache).forEach(function(id){ const c=scoreCache[id]; add(c&&c.g?c.g:c); }); // v2 {g:[]}, with array fallback
   Object.keys(liveScorers).forEach(function(id){ add(liveScorers[id]); });
   return Object.keys(t).map(function(k){ return t[k]; }).sort(function(a,b){ return b.goals-a.goals || a.p.localeCompare(b.p); });
 }
@@ -584,11 +625,40 @@ function renderScorers(demo){
 }
 async function updateScorers(matches, demo){
   const isReal=function(id){ return /^[0-9]+$/.test(String(id)); };
+  const now=Date.now();
   const finished=matches.filter(m=>m.played && !m.live && isReal(m.id));
   const live=matches.filter(m=>m.live && isReal(m.id));
-  const need=finished.filter(m=>!scoreCache[m.id]).slice(0, CFG.scorerCallsPerLoad);
+
+  // THE FIX: a finished match needs a (re)fetch while its stored goal list is
+  // still thinner than the final score — i.e. TheSportsDB hasn't posted every
+  // goal yet. The old code fetched each match exactly once and cached the result
+  // forever, so a hat-trick that posts to the timeline hours after the final
+  // whistle (e.g. Messi vs Algeria) never appeared. We now keep retrying — with
+  // caps — until the timeline matches the scoreline or clearly stops growing.
+  function needsFetch(m){
+    const total=(m.hs||0)+(m.as||0);
+    const c=scoreCache[m.id];
+    if(!c) return total>0;                       // never fetched and goals exist
+    if(c.n>=CFG.scorerMaxTries) return false;    // had enough chances — stop chasing
+    if(c.same>=3) return false;                  // timeline has stabilised (e.g. own-goal matches)
+    if((now-m.ts.getTime()) > 3*DAY) return false; // only chase recent matches
+    return c.g.length < total;                   // still missing goals vs the scoreline
+  }
+  const need=finished.filter(needsFetch)
+    .sort(function(a,b){ return b.ts-a.ts; })     // newest matches first
+    .slice(0, CFG.scorerCallsPerLoad);
+
   const jobs=[];
-  need.forEach(function(m){ jobs.push(getJSON(base+'/lookuptimeline.php?id='+m.id).then(function(j){ scoreCache[m.id]=parseGoals(j&&j.timeline); })); });
+  need.forEach(function(m){
+    jobs.push(getJSON(base+'/lookuptimeline.php?id='+m.id).then(function(j){
+      const goals=parseGoals(j&&j.timeline);
+      const prev=scoreCache[m.id]||{g:[],n:0,len:-1,same:0};
+      const same=(goals.length===prev.len)?(prev.same+1):0;
+      // keep the richer of old/new so a transient empty response can't wipe goals
+      const keep=(goals.length>=prev.g.length)?goals:prev.g;
+      scoreCache[m.id]={g:keep,n:prev.n+1,len:goals.length,same:same};
+    }));
+  });
   live.forEach(function(m){ jobs.push(getJSON(base+'/lookuptimeline.php?id='+m.id).then(function(j){ liveScorers[m.id]=parseGoals(j&&j.timeline); })); });
   if(jobs.length){
     try{ await Promise.all(jobs); }catch(e){}
@@ -598,19 +668,50 @@ async function updateScorers(matches, demo){
 }
 
 /* ---- main ---- */
-async function load(){
-  setFeed('warn','Fetching…');
-  let data;
-  try{ data = await pullData(); }catch(e){ data={matches:[],anyOk:false}; }
-  let matches = data.matches, demo=false;
-  if(!data.anyOk || matches.length===0){ matches=demoData(); demo=true; }
+function renderAll(matches, demo){
   renderView1(matches);
   renderView2(buildStandings(matches));
   renderView3(matches, demo);
-  updateScorers(matches, demo);
-  setUpdated();
-  if(demo) setFeed('err','Sample data — live feed offline');
-  else setFeed('ok','Live · TheSportsDB');
+}
+function setUpdatedAt(ms){ document.getElementById('updated').textContent=new Date(ms).toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'}); }
+
+async function load(){
+  const snap=loadSnap();
+
+  // Off-hours: don't touch the API at all. Keep the last-good snapshot on screen
+  // (or sample data if a screen has never pulled). Saves requests overnight x6 screens.
+  if(!inGameWindow()){
+    if(snap){
+      snap.matches.forEach(function(m){ m.live=false; });   // nothing is live overnight
+      renderAll(snap.matches, false);
+      setUpdatedAt(snap.ts);
+      setFeed('warn','Off-hours · feed paused');
+    }else{
+      renderAll(demoData(), true);
+      setFeed('warn','Off-hours · sample data');
+    }
+    return;
+  }
+
+  // In-window: paint the snapshot instantly (no blank screen on reload), then refresh.
+  if(snap){ renderAll(snap.matches, false); setUpdatedAt(snap.ts); }
+
+  setFeed('warn','Fetching…');
+  let data;
+  try{ data = await pullData(); }catch(e){ data={matches:[],anyOk:false}; }
+
+  if(data.anyOk && data.matches.length){
+    renderAll(data.matches, false);
+    saveSnap(data.matches);
+    updateScorers(data.matches, false);
+    setUpdated();
+    setFeed('ok','Live · TheSportsDB');
+  }else if(snap){
+    setFeed('warn','Reusing last data');      // feed hiccup — keep snapshot, don't drop to demo
+  }else{
+    renderAll(demoData(), true);
+    setFeed('err','Sample data — live feed offline');
+  }
 }
 
 function init(){
