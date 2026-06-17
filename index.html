@@ -504,7 +504,13 @@ function setFeed(state,msg){
 }
 function setUpdated(){ document.getElementById('updated').textContent=new Date().toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'}); }
 
-const NVIEWS=3;
+/* ---- Page 3 (Tournament Stats / Golden Boot) toggle ----
+   Temporarily disabled 2026-06-17: TheSportsDB's goal-by-goal timeline data is
+   incomplete (e.g. Messi's hat-trick reads as 1 goal), making the Golden Boot
+   inaccurate. To restore the page once the data is fixed, set STATS_VIEW = true —
+   that is the only change needed; the View 3 markup and code are left intact. */
+const STATS_VIEW=false;
+const NVIEWS=STATS_VIEW?3:2;
 let view=0, rotTimer=null, progTimer=null;
 function showView(i){
   view=i;
@@ -678,7 +684,7 @@ async function updateScorers(matches, demo){
 function renderAll(matches, demo){
   renderView1(matches);
   renderView2(buildStandings(matches));
-  renderView3(matches, demo);
+  if(STATS_VIEW) renderView3(matches, demo);   // Page 3 disabled — see STATS_VIEW above
 }
 function setUpdatedAt(ms){ document.getElementById('updated').textContent=new Date(ms).toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'}); }
 
@@ -710,7 +716,7 @@ async function load(){
   if(data.anyOk && data.matches.length){
     renderAll(data.matches, false);
     saveSnap(data.matches);
-    updateScorers(data.matches, false);
+    if(STATS_VIEW) updateScorers(data.matches, false);   // skip timeline calls while Page 3 is off
     setUpdated();
     setFeed('ok','Live · TheSportsDB');
   }else if(snap){
@@ -742,6 +748,7 @@ function init(){
   fitGuard(); tickClock();
   setInterval(tickClock,1000);
   window.addEventListener('resize',fitGuard);
+  if(!STATS_VIEW){ const d3=document.querySelector('.dots .d[data-i="2"]'); if(d3) d3.style.display='none'; } // hide 3rd dot
   showView(0); startRotation();
   load();
   setInterval(load, CFG.refreshMs);
